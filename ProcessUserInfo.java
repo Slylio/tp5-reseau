@@ -11,12 +11,13 @@ public class ProcessUserInfo{
     }
 
     public static void main(String[] args) throws IOException {
-        if (args.length<=0 || args.length>1){
+        if (args.length==0 || args.length>1){
             help();
         }
         int intError=0;
         try {
             intError = Integer.parseInt(args[0]);
+            //test intError = 9632;
         }
         catch (Exception e) {
             e.printStackTrace();
@@ -39,27 +40,30 @@ public class ProcessUserInfo{
             datagramSocket.receive(new DatagramPacket(buf, buf.length));
             datagramSocket.close();
                 
-            if (buf[0]==0){
+            if (buf[0]==1){
 
-                //dans le cas d'un type 0 on doit juste avoi le login pour inscrire les données dans la hashmap
+                //dans le cas d'un type 0 on doit juste avoir le login pour inscrire les données dans la hashmap
                 System.out.println("\nRECV: " + DataBufferizer.bufferToString(buf) + " at " + n);
                 int n2 = 15;
                 final byte b2 = buf[n2];
                 ++n2;
                 final String login = new String(DataBufferizer.readByteArray(buf, n2, (int)b2));
                 messages.put(login, buf); // ajout d’une information dans la hashmap
+                System.out.println(messages.get(login));
 
-            }else if(buf[0]==1) {
+            }else if(buf[0]==2) {
 
-                int n2Request = 8;  //on se place en fonction du format 2
+                //lecture du login pour chercher dans la hash map
+                int n2Request = 7;  //on se place en fonction du format 2 (j'ai passé 3 heures a comprendre que j'avais mis 8 au lieu de 7..)
                 final byte b2 = buf[n2Request];
                 ++n2Request;
                 final String loginRequest = new String(DataBufferizer.readByteArray(buf, n2Request, (int)b2));  //lecture 
                 System.out.println("Recherche des données de "+loginRequest);
 
+                //on prend le buffer a partir du login dans la hashmap 
                 byte[] bufRequest = messages.get(loginRequest); // récupération du buffer dans la hashmap
                 
-                //Lecture du buffer dans la hashmap
+                //Lecture du buffer de la hashmap et affichage
                 System.out.println("\nRECV: " + DataBufferizer.bufferToString(bufRequest) + " at " + n);
                 int n2 = 0;
                 ++n2;
