@@ -4,87 +4,123 @@ import java.net.*;
 
 public class ProcessUserInfo{
     
-    HashMap<String,byte[]> messages;
-        
-    public ProcessUserInfo(){
+    Map<String,byte[]> messages;
+    private int port;
+    private String address;
+    private int periode;
+
+    public ProcessUserInfo( String address,int port){
         messages = new HashMap<>();
+        this.port=port;
+        this.address=address;
+        this.periode=5000;
     }
 
     public static void main(String[] args) throws IOException {
-        if (args.length==0 || args.length>1){
-            help();
-        }
-        int intError=0;
         try {
-            intError = Integer.parseInt(args[0]);
-            //test intError = 9632;
+
+            new ProcessUserInfo(args[0],Integer.parseInt(args[1])).run();
         }
         catch (Exception e) {
-            e.printStackTrace();
             help();
         }
-        new ProcessUserInfo().process(intError);
-
     }
 
     public static void help(){
-        System.out.println("java ProcessUserInfo <port>");
+        System.out.println("java ProcessUserInfo <adresse> <port>");
         System.out.println("    port : port sur lequel le programme se connecte pour la réception des datagrammes");
     }
-    public void process(int n) throws IOException{
-
-        //receive packet
-        while (true){
-            final byte[] buf = new byte[32];
-            final DatagramSocket datagramSocket = new DatagramSocket(n);
-            datagramSocket.receive(new DatagramPacket(buf, buf.length));
-            datagramSocket.close();
-                
-            if (buf[0]==1){
-
-                //dans le cas d'un type 0 on doit juste avoir le login pour inscrire les données dans la hashmap
-                System.out.println("\nRECV: " + DataBufferizer.bufferToString(buf) + " at " + n);
-                int n2 = 15;
-                final byte b2 = buf[n2];
-                ++n2;
-                final String login = new String(DataBufferizer.readByteArray(buf, n2, (int)b2));
-                messages.put(login, buf); // ajout d’une information dans la hashmap
-                System.out.println(messages.get(login));
-
-            }else if(buf[0]==2) {
-
-                //lecture du login pour chercher dans la hash map
-                int n2Request = 7;  //on se place en fonction du format 2 (j'ai passé 3 heures a comprendre que j'avais mis 8 au lieu de 7..)
-                final byte b2 = buf[n2Request];
-                ++n2Request;
-                final String loginRequest = new String(DataBufferizer.readByteArray(buf, n2Request, (int)b2));  //lecture 
-                System.out.println("Recherche des données de "+loginRequest);
-
-                //on prend le buffer a partir du login dans la hashmap 
-                byte[] bufRequest = messages.get(loginRequest); // récupération du buffer dans la hashmap
-                
-                //Lecture du buffer de la hashmap et affichage
-                System.out.println("\nRECV: " + DataBufferizer.bufferToString(bufRequest) + " at " + n);
-                int n2 = 0;
-                ++n2;
-                final Date obj = new Date(DataBufferizer.readLong(bufRequest, n2));
-                n2 += 8;
-                final InetAddress byAddress = InetAddress.getByAddress(DataBufferizer.readByteArray(bufRequest, n2, 4));
-                n2 += 4;
-                final short short1 = DataBufferizer.readShort(bufRequest, n2);
-                n2 += 2;
-                final byte b2Read = bufRequest[n2];
-                ++n2;
-                final String str = new String(DataBufferizer.readByteArray(bufRequest, n2, (int)b2Read));
-
-                System.out.println("Type:    " + bufRequest[0]);
-                System.out.println("Date:    " + obj);
-                System.out.println("Address: " + byAddress);
-                System.out.println("Port:    " + short1);
-                System.out.println("Login:   " + str);
-
-            }
-        }
+    public void run(){
+        Thread processThread = new Thread(){
+            public void run(){
+                //receive packet
+                while (true){
+                    byte[] buf = new byte[32];
+                    InetAddress group = InetAddress.getByName(address); //création groupe
+                    MulticastSocket multicastSocket = new MulticastSocket(port);    //création du multicast Socket
+                    DatagramPacket datagramPacket = new DatagramPacket(buf, buf.length);
+                    datagramPacket.joinGroup(group);    //on abonne le datagramsocket au groupe
+                    datagramPacket.receive(new DatagramPacket(buf, buf.length));
+                    datagramPacket.close();
+                        
+                    
+                    //cas écriture
+                    if (buf[0]==1){
+                        //dans le cas d'un type 0 on doit juste avoir le login pour inscrire les données dans la hashmap
+                        System.out.println("\nType 1RECV: " + DataBufferizer.bufferToString(buf) + " at " + port);
+                        int n2 = 15;
+                        final byte b2 = buf[n2];
+                        ++n2;
+                        final String login = new String(DataBufferizer.readByteArray(buf, n2, (int)b2));
+                        messages.put(login, buf); // ajout d’une information dans la hashmap
+                        System.out.println(messages.get(login));
+                    
+                    //cas lecture
+                    }else if(buf[0]==2) {
         
-    }
+                        //lecture du login pour chercher dans la hash map
+                        int n2Request = 7;  //on se place en fonction du format 2
+                        byte b2 = buf[n2Request];
+                        ++n2Request;
+                        String loginRequest = new String(DataBufferizer.readByteArray(buf, n2Request, (int)b2));  //lecture 
+                        System.out.println("Recherche des données de "+loginRequest);
+        
+                        //on prend le buffer a partir du login dans la hashmap 
+                        byte[] bufRequest = messages.get(loginRequest); // récupération du buffer dans la hashmap
+                            
+                        //Lecture du buffer de la hashmap et affichage
+                        System.out.println("\nType 2 RECV: " + DataBufferizer.bufferToString(bufRequest) + " at " + port);
+                        int n2 = 0;
+                        ++n2;
+                        Date date = new Date(DataBufferizer.readLong(bufRequest, n2));
+                        n2 += 8;
+                        InetAddress byAddress = InetAddress.getByAddress(DataBufferizer.readByteArray(bufRequest, n2, 4));
+                        n2 += 4;
+                        short short1 = DataBufferizer.readShort(bufRequest, n2);
+                        n2 += 2;
+                        byte b2Read = bufRequest[n2];
+                        ++n2;
+                        String str = new String(DataBufferizer.readByteArray(bufRequest, n2, (int)b2Read));
+        
+                        System.out.println("Type:    " + bufRequest[0]);
+                        System.out.println("Date d'expiration:    " + date);
+                        System.out.println("Address: " + byAddress);
+                        System.out.println("Port:    " + short1);
+                        System.out.println("Login:   " + str);
+                    
+                    //cas suppression 
+                    } else if (buf[0]==3){
+                        System.out.println("Type 3 RECV: " + DataBufferizer.bufferToString(buf) + " at " + port);
+                        byte n = buf[1];
+                        String login = new String(DataBufferizer.readByteArray(buf, 2,n));
+                        messages.remove(login);
+                        System.out.println("Supression du login dans la hashMap..");
+                    }
+                }
+            }
+        };
+        processThread.start();
+        Thread disconnectionThread = new Thread(){
+            public void run(){
+                //toujours tester les personnes dans la table
+                while (true){
+                    //on vérifie tout le monde
+                    System.out.println("Utilisateurs connectés:");
+                    for (Map.Entry<String,byte[]> entry:messages.entrySet()){
+
+                        //on prend la date limite de chacun
+                        Date dateEntry = new Date(DataBufferizer.readLong(entry.getValue(), 1));
+
+                        //si cette date est supérieure a la date actuelle on supprime de la table
+                        if (dateEntry.after(new Date())){
+                            messages.remove(entry);
+                        }
+                        System.out.println(entry.getKey());
+                    }
+                    sleep(periode); //5 secondes d'attente
+                }
+            } 
+        };
+        disconnectionThread.start();
+    }        
 }

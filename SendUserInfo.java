@@ -11,23 +11,27 @@ public class SendUserInfo {
     
     private String login;
 
+    private int periode;
+
     public SendUserInfo(String stringAddressReceiver,int socketNumReceiver,String stringAddressSender,int socketNumSender, String login){
         this.stringAddressReceiver=stringAddressReceiver;
         this.socketNumReceiver=socketNumReceiver;
         this.stringAddressSender=stringAddressSender;
         this.socketNumSender=socketNumSender;
         this.login=login;
+        this.periode=5000;
     }
 
     private static void usage() {
-        System.out.println("java SendUserInfo <adresse1> <port1> <adresse2> <port2> <login>");
+        
         System.out.println("Send an information packet");
+        System.out.println("java SendUserInfo <adresse1> <port1> <adresse2> <port2> <login>");
         System.out.println("With:");
         System.out.println("   adresse1, port1:   coordonates of receiver");
         System.out.println("   adresse2,port2,login:   coordonates of sender");
         System.exit(-1);
     }
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, InterruptedException {
         if (args.length!=5){
             //TESTS
             //SendUserInfo sendUserTest = new SendUserInfo("localhost", 9632, "localhost", 9632, "emilio");
@@ -41,16 +45,15 @@ public class SendUserInfo {
     }
 
 
-    public void sendPacket() throws IOException {
-        
+    public void sendPacket() throws IOException, InterruptedException {
         byte[] buf = new byte[32];
-
         // Write type
         DataBufferizer.writeByte((byte) 1, buf, 0);  
-        
-        // Write date
-        DataBufferizer.writeLong(new Date().getTime(), buf, 1);
-        
+            
+        // Write date of expiration = actual time + 10 000ms here (period = 5s = 5000ms)
+        DataBufferizer.writeLong(new Date().getTime()+periode*2, buf, 1);
+
+            
         //Write address of sender
         InetAddress addressInfo = InetAddress.getByName(stringAddressSender);
         DataBufferizer.writeByteArray(addressInfo.getAddress(), buf, 9, 4);
@@ -66,11 +69,18 @@ public class SendUserInfo {
         DataBufferizer.writeByte((byte) login.getBytes().length, buf, 15);
         DataBufferizer.writeByteArray(bufLogin, buf, 16,login.getBytes().length);
 
-        //send datagram
-        DatagramSocket socket = new DatagramSocket();
-        InetAddress address = InetAddress.getByName(stringAddressReceiver);
-        DatagramPacket packet = new DatagramPacket(buf, buf.length, 
-                                address, socketNumReceiver);
-        socket.send(packet);
+        //modify-and-send loop
+        while (true){
+            wait(periode);
+            //send datagram
+            DatagramSocket socket = new DatagramSocket();
+            InetAddress address = InetAddress.getByName(stringAddressReceiver);
+            DatagramPacket packet = new DatagramPacket(buf, buf.length, 
+                                    address, socketNumReceiver);
+            socket.send(packet);
+            // Write date of expiration = actual time + 10 000ms here (period = 5s = 5000ms)
+            DataBufferizer.writeLong(new Date().getTime()+periode*2, buf, 1);
+            socket.send(packet);
+        }
     }
 }
